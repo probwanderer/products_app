@@ -10,7 +10,7 @@ import snowflake from 'snowflake-sdk';
 import path from "path";
 import crypto from "crypto";
 import fs from "fs";
-
+// import util from "util";
 var privateKeyFile = fs.readFileSync(path.resolve('rsa_key.p8'));
 // Get the private key from the file as an object.
 const privateKeyObject = crypto.createPrivateKey({
@@ -94,22 +94,51 @@ app.get("/api/products/create", async (_req, res) => {
   }
   res.status(status).send({ success: status === 200, error });
 });
-app.get("/api/products/all", async (_req, res) => {
-  var allProducts ;
-    connection.execute({
-    sqlText: 'SELECT * FROM PRODUCTS',
-    complete: function(err, stmt, rows) {
+app.get("/api/products/filtered", async (_req, res) => {
+  const minPrice = _req.query.minPrice?.toString();
+  const maxPrice = _req.query.maxPrice?.toString();
+  
+  // Validate minPrice and maxPrice
+  if (minPrice === undefined || maxPrice === undefined) {
+    res.status(400).json({ error: "Invalid price range" });
+    return;
+  }
+  if (minPrice === undefined || maxPrice === undefined || minPrice === '' || maxPrice === '') {
+    res.status(400).json({ error: "Invalid price range" });
+    return;
+  }
+
+
+
+  connection.execute({
+    sqlText: 'SELECT * FROM PRODUCTS WHERE PRICE >= ? AND PRICE <= ?',
+    binds: [minPrice, maxPrice],
+    complete: function (err, stmt, rows) {
       if (err) {
         console.error('Failed to execute statement due to the following error: ' + err.message);
+        res.status(500).json({ error: err.message });
       } else {
-        allProducts=rows;
-        console.log('Number of rows produced: ' + rows.length);
+        console.log("Data sent");
+        res.json(rows);
       }
     }
-
   });
-  res.status(200).send(allProducts);
 });
+app.get("/api/products", async (_req, res) => {
+  connection.execute({
+    sqlText: 'SELECT * FROM PRODUCTS',
+    complete: function (err, stmt, rows) {
+      if (err) {
+        console.error('Failed to execute statement due to the following error: ' + err.message);
+        res.status(500).json({ error: err.message });
+      } else {
+        console.log("Data sent");
+        res.json(rows);
+      }
+    }
+  });
+});
+
 
 app.use(shopify.cspHeaders());
 app.use(serveStatic(STATIC_PATH, { index: false }));
